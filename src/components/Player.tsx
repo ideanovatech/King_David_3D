@@ -89,9 +89,16 @@ export function Player() {
         
         // Squash and Stretch Animation
         if (playerMesh.current) {
-            playerMesh.current.scale.set(0.8, 1.2, 0.8); // Stretch
+            // Stretch up
+            playerMesh.current.scale.set(0.8, 1.2, 0.8); 
+            
+            // Return to normal
             setTimeout(() => {
-                if (playerMesh.current) playerMesh.current.scale.set(1, 1, 1);
+                if (playerMesh.current) {
+                    // Smooth return to normal could be handled in useFrame, but setTimeout is simple enough for now.
+                    // Let's just set it back to 1,1,1. The landing will squash it.
+                    playerMesh.current.scale.set(1, 1, 1);
+                }
             }, 200);
         }
     };
@@ -137,14 +144,14 @@ export function Player() {
 
   // Attack handler
   useEffect(() => {
-    const handleMouseDown = () => {
-      if (isPaused) return;
+    const triggerAttack = (type: 'sling' | 'knife') => {
+      if (isPaused || isAttacking) return;
       
-      // ... (attack logic)
       const now = Date.now();
       
-      if (weapon === 'sling') {
+      if (type === 'sling') {
         if (now - lastShot > SLING_COOLDOWN) {
+          setWeapon('sling');
           setLastShot(now);
           setIsAttacking(true);
           
@@ -182,9 +189,8 @@ export function Player() {
           // Animation duration matches cooldown roughly
           setTimeout(() => setIsAttacking(false), 500);
         }
-      } else if (weapon === 'knife') {
-        if (isAttacking) return;
-        
+      } else if (type === 'knife') {
+        setWeapon('knife');
         setIsAttacking(true);
         setLastShot(now);
         
@@ -215,20 +221,136 @@ export function Player() {
       }
     };
 
+    const handleMouseDown = (e: MouseEvent) => {
+      // 0 is left click (knife), 2 is right click (sling)
+      if (e.button === 0) {
+        triggerAttack('knife');
+      } else if (e.button === 2) {
+        triggerAttack('sling');
+      }
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault(); // Prevent right-click menu
+    };
+
+    const handleCustomAttack = (e: CustomEvent) => {
+      triggerAttack(e.detail);
+    };
+
     window.addEventListener('mousedown', handleMouseDown);
-    return () => window.removeEventListener('mousedown', handleMouseDown);
-  }, [isPaused, lastShot, shootStone, camera, weapon, isAttacking, damageEnemy, addEffect]);
+    window.addEventListener('contextmenu', handleContextMenu);
+    window.addEventListener('attack', handleCustomAttack as EventListener);
+    
+    return () => {
+      window.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('contextmenu', handleContextMenu);
+      window.removeEventListener('attack', handleCustomAttack as EventListener);
+    };
+  }, [isPaused, lastShot, shootStone, camera, isAttacking, damageEnemy, addEffect]);
 
   const leftArm = useRef<THREE.Group>(null);
   const rightArm = useRef<THREE.Group>(null);
   const leftLeg = useRef<THREE.Group>(null);
   const rightLeg = useRef<THREE.Group>(null);
+  const slingRef = useRef<THREE.Group>(null);
+  const knifeRef = useRef<THREE.Group>(null);
+
+  // Gamepad state
+  const gamepadState = useRef({
+      lastAttackTime: 0,
+      lastDodgeTime: 0,
+      lastJumpTime: 0,
+      lastPauseTime: 0,
+  });
 
   useFrame((state) => {
     if (!playerRef.current || isPaused) return;
 
+    // Weapon scale animation
+    if (slingRef.current) {
+        const targetScale = weapon === 'sling' ? 1 : 0;
+        slingRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.2);
+        
+        // Add a little rotation for flair when drawing the weapon
+        if (targetScale === 1 && slingRef.current.scale.x < 0.9) {
+            slingRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 20) * 0.2;
+        } else {
+            slingRef.current.rotation.z = 0;
+        }
+    }
+    if (knifeRef.current) {
+        const targetScale = weapon === 'knife' ? 1 : 0;
+        knifeRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.2);
+        
+        // Add a little rotation for flair when drawing the weapon
+        if (targetScale === 1 && knifeRef.current.scale.x < 0.9) {
+            knifeRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 20) * 0.2;
+        } else {
+            knifeRef.current.rotation.z = 0;
+        }
+    }
+
     // Get current velocity
     const vel = playerRef.current.linvel();
+
+    // Gamepad Input Handling
+    const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+    const gp = gamepads[0]; // Use first gamepad
+    
+    let gpForward = 0;
+    let gpSide = 0;
+    
+    if (gp) {
+        // Left stick for movement
+        if (Math.abs(gp.axes[1]) > 0.1) gpForward = gp.axes[1];
+        if (Math.abs(gp.axes[0]) > 0.1) gpSide = gp.axes[0];
+        
+        // Right stick for camera (handled in App.tsx or here? Better here for now if we can access camera)
+        if (Math.abs(gp.axes[2]) > 0.1 || Math.abs(gp.axes[3]) > 0.1) {
+            const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+            euler.setFromQuaternion(camera.quaternion);
+            euler.y -= gp.axes[2] * 0.05;
+            euler.x -= gp.axes[3] * 0.05;
+            euler.x = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, euler.x));
+            camera.quaternion.setFromEuler(euler);
+        }
+
+        const now = Date.now();
+        
+        // Buttons
+        // A / Cross (0) -> Attack (Knife)
+        if (gp.buttons[0].pressed && now - gamepadState.current.lastAttackTime > 500) {
+            window.dispatchEvent(new CustomEvent('attack', { detail: 'knife' }));
+            gamepadState.current.lastAttackTime = now;
+        }
+        
+        // B / Circle (1) or X / Square (2) -> Attack (Sling)
+        if ((gp.buttons[1].pressed || gp.buttons[2].pressed) && now - gamepadState.current.lastAttackTime > 500) {
+            window.dispatchEvent(new CustomEvent('attack', { detail: 'sling' }));
+            gamepadState.current.lastAttackTime = now;
+        }
+        
+        // Shoulders (4, 5) -> Dodge
+        if ((gp.buttons[4].pressed || gp.buttons[5].pressed) && now - gamepadState.current.lastDodgeTime > 500) {
+            window.dispatchEvent(new Event('dash'));
+            gamepadState.current.lastDodgeTime = now;
+        }
+        
+        // Y / Triangle (3) -> Jump
+        if (gp.buttons[3].pressed && now - gamepadState.current.lastJumpTime > 500) {
+            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space' }));
+            gamepadState.current.lastJumpTime = now;
+        } else if (!gp.buttons[3].pressed) {
+            window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Space' }));
+        }
+        
+        // Start (9) -> Pause
+        if (gp.buttons[9].pressed && now - gamepadState.current.lastPauseTime > 1000) {
+            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyP' }));
+            gamepadState.current.lastPauseTime = now;
+        }
+    }
 
     // ... (camera direction logic)
     const cameraDirection = new THREE.Vector3();
@@ -239,9 +361,9 @@ export function Player() {
     const cameraRight = new THREE.Vector3();
     cameraRight.crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0));
 
-    // Combine Keyboard and Joystick input
-    const forwardInput = (Number(keys.current.forward) - Number(keys.current.backward)) + (-joystick.current.y);
-    const sideInput = (Number(keys.current.right) - Number(keys.current.left)) + (joystick.current.x);
+    // Combine Keyboard and Joystick and Gamepad input
+    const forwardInput = (Number(keys.current.forward) - Number(keys.current.backward)) + (-joystick.current.y) + gpForward;
+    const sideInput = (Number(keys.current.right) - Number(keys.current.left)) + (joystick.current.x) + gpSide;
 
     const inputVector = new THREE.Vector2(sideInput, forwardInput);
     if (inputVector.length() > 1) inputVector.normalize();
@@ -541,41 +663,37 @@ export function Player() {
             </mesh>
             
             {/* Weapon: Sling (Attached to Right Arm) */}
-            {weapon === 'sling' && (
-              <group position={[0, -0.6, 0.1]} rotation={[0, 0, 0]}>
-                 {/* Main Leather Strip */}
-                 <mesh>
-                   <boxGeometry args={[0.05, 0.6, 0.02]} />
-                   <meshStandardMaterial color="#5c4033" />
-                 </mesh>
-                 {/* Pouch */}
-                 <mesh position={[0, -0.3, 0]}>
-                   <sphereGeometry args={[0.08, 16, 16]} />
-                   <meshStandardMaterial color="#3e2723" />
-                 </mesh>
-                 {/* Wrist Strap */}
-                 <mesh position={[0, 0.25, -0.05]} rotation={[0.2, 0, 0]}>
-                    <boxGeometry args={[0.04, 0.3, 0.01]} />
-                    <meshStandardMaterial color="#4e342e" />
-                 </mesh>
-              </group>
-            )}
+            <group ref={slingRef} position={[0, -0.6, 0.1]} rotation={[0, 0, 0]}>
+               {/* Main Leather Strip */}
+               <mesh>
+                 <boxGeometry args={[0.05, 0.6, 0.02]} />
+                 <meshStandardMaterial color="#5c4033" />
+               </mesh>
+               {/* Pouch */}
+               <mesh position={[0, -0.3, 0]}>
+                 <sphereGeometry args={[0.08, 16, 16]} />
+                 <meshStandardMaterial color="#3e2723" />
+               </mesh>
+               {/* Wrist Strap */}
+               <mesh position={[0, 0.25, -0.05]} rotation={[0.2, 0, 0]}>
+                  <boxGeometry args={[0.04, 0.3, 0.01]} />
+                  <meshStandardMaterial color="#4e342e" />
+               </mesh>
+            </group>
     
             {/* Weapon: Knife (Attached to Right Arm) */}
-            {weapon === 'knife' && (
-              <group position={[0, -0.6, 0.1]} rotation={[Math.PI/2, 0, 0]}>
-                 {/* Handle */}
-                 <mesh position={[0, -0.1, 0]}>
-                   <cylinderGeometry args={[0.03, 0.04, 0.2, 8]} />
-                   <meshStandardMaterial color="#3e2723" />
-                 </mesh>
-                 {/* Blade */}
-                 <mesh position={[0, 0.15, 0]}>
-                   <boxGeometry args={[0.05, 0.3, 0.01]} />
-                   <meshStandardMaterial color="#cfd8dc" metalness={0.8} roughness={0.2} />
-                 </mesh>
-              </group>
-            )}
+            <group ref={knifeRef} position={[0, -0.6, 0.1]} rotation={[Math.PI/2, 0, 0]}>
+               {/* Handle */}
+               <mesh position={[0, -0.1, 0]}>
+                 <cylinderGeometry args={[0.03, 0.04, 0.2, 8]} />
+                 <meshStandardMaterial color="#3e2723" />
+               </mesh>
+               {/* Blade */}
+               <mesh position={[0, 0.15, 0]}>
+                 <boxGeometry args={[0.05, 0.3, 0.01]} />
+                 <meshStandardMaterial color="#cfd8dc" metalness={0.8} roughness={0.2} />
+               </mesh>
+            </group>
         </group>
 
         {/* Legs - Pivot at hip */}

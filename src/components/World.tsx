@@ -113,12 +113,12 @@ function Bush({ position, scale = 1, color = '#556b2f' }: { position: [number, n
 }
 
 function Grass() {
-  const count = 2000;
+  const count = 4000;
   const positions = useMemo(() => {
     const pos = [];
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const radius = Math.random() * 48; 
+      const radius = Math.random() * 98; 
       const x = Math.cos(angle) * radius;
       const z = Math.sin(angle) * radius;
       pos.push({ x, z, scale: 0.5 + Math.random() * 0.8, rotation: Math.random() * Math.PI });
@@ -143,12 +143,12 @@ function Grass() {
 }
 
 function SmallStones() {
-  const count = 500;
+  const count = 1000;
   const positions = useMemo(() => {
     const pos = [];
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const radius = Math.random() * 48; 
+      const radius = Math.random() * 98; 
       const x = Math.cos(angle) * radius;
       const z = Math.sin(angle) * radius;
       pos.push({ x, z, scale: 0.1 + Math.random() * 0.2, rotation: Math.random() * Math.PI });
@@ -176,39 +176,110 @@ function Hills() {
   return (
     <group>
       {/* Distant Hills - Ring around the map */}
-      <mesh position={[-60, -5, -60]} scale={[40, 20, 40]}>
+      <mesh position={[-120, -5, -120]} scale={[80, 40, 80]}>
         <dodecahedronGeometry args={[1, 0]} />
         <meshStandardMaterial color="#5d4037" roughness={1} />
       </mesh>
-      <mesh position={[0, -10, -80]} scale={[60, 25, 40]}>
+      <mesh position={[0, -10, -160]} scale={[120, 50, 80]}>
         <dodecahedronGeometry args={[1, 0]} />
         <meshStandardMaterial color="#4e342e" roughness={1} />
       </mesh>
-      <mesh position={[60, -5, -60]} scale={[40, 20, 40]}>
+      <mesh position={[120, -5, -120]} scale={[80, 40, 80]}>
         <dodecahedronGeometry args={[1, 0]} />
         <meshStandardMaterial color="#5d4037" roughness={1} />
       </mesh>
-       <mesh position={[80, -5, 0]} scale={[40, 25, 50]}>
+       <mesh position={[160, -5, 0]} scale={[80, 50, 100]}>
         <dodecahedronGeometry args={[1, 0]} />
         <meshStandardMaterial color="#4e342e" roughness={1} />
       </mesh>
-       <mesh position={[60, -5, 60]} scale={[40, 20, 40]}>
+       <mesh position={[120, -5, 120]} scale={[80, 40, 80]}>
         <dodecahedronGeometry args={[1, 0]} />
         <meshStandardMaterial color="#5d4037" roughness={1} />
       </mesh>
-      <mesh position={[0, -10, 80]} scale={[60, 25, 40]}>
+      <mesh position={[0, -10, 160]} scale={[120, 50, 80]}>
         <dodecahedronGeometry args={[1, 0]} />
         <meshStandardMaterial color="#4e342e" roughness={1} />
       </mesh>
-       <mesh position={[-60, -5, 60]} scale={[40, 20, 40]}>
+       <mesh position={[-120, -5, 120]} scale={[80, 40, 80]}>
         <dodecahedronGeometry args={[1, 0]} />
         <meshStandardMaterial color="#5d4037" roughness={1} />
       </mesh>
-      <mesh position={[-80, -5, 0]} scale={[40, 25, 50]}>
+      <mesh position={[-160, -5, 0]} scale={[80, 50, 100]}>
         <dodecahedronGeometry args={[1, 0]} />
         <meshStandardMaterial color="#4e342e" roughness={1} />
       </mesh>
     </group>
+  );
+}
+
+function Pillar({ position, scale = 1, broken = false }: { position: [number, number, number], scale?: number, broken?: boolean }) {
+  return (
+    <RigidBody type="fixed" colliders="cuboid" position={position}>
+      <group scale={scale}>
+        {/* Base */}
+        <mesh castShadow receiveShadow position={[0, 0.25, 0]}>
+          <boxGeometry args={[1.2, 0.5, 1.2]} />
+          <meshStandardMaterial color="#d7ccc8" roughness={0.9} />
+        </mesh>
+        {/* Column */}
+        <mesh castShadow receiveShadow position={[0, broken ? 1.5 : 2.5, 0]}>
+          <cylinderGeometry args={[0.4, 0.4, broken ? 2 : 4, 8]} />
+          <meshStandardMaterial color="#d7ccc8" roughness={0.9} />
+        </mesh>
+        {/* Top (if not broken) */}
+        {!broken && (
+          <mesh castShadow receiveShadow position={[0, 4.75, 0]}>
+            <boxGeometry args={[1.2, 0.5, 1.2]} />
+            <meshStandardMaterial color="#d7ccc8" roughness={0.9} />
+          </mesh>
+        )}
+        {/* Debris if broken */}
+        {broken && (
+          <mesh castShadow receiveShadow position={[1, 0.5, 0]} rotation={[0, 0, 1.2]}>
+             <cylinderGeometry args={[0.4, 0.4, 1.5, 8]} />
+             <meshStandardMaterial color="#d7ccc8" roughness={0.9} />
+          </mesh>
+        )}
+      </group>
+    </RigidBody>
+  );
+}
+
+function Well({ position }: { position: [number, number, number] }) {
+  return (
+    <RigidBody type="fixed" colliders="hull" position={position}>
+      <group>
+        {/* Base ring */}
+        <mesh castShadow receiveShadow position={[0, 0.5, 0]}>
+          <cylinderGeometry args={[1.5, 1.5, 1, 12]} />
+          <meshStandardMaterial color="#8d6e63" roughness={1} />
+        </mesh>
+        {/* Inner hole (fake depth) */}
+        <mesh position={[0, 0.9, 0]}>
+          <cylinderGeometry args={[1.2, 1.2, 0.1, 12]} />
+          <meshStandardMaterial color="#1a1a1a" roughness={1} />
+        </mesh>
+        {/* Wooden supports */}
+        <mesh castShadow receiveShadow position={[-1.2, 1.5, 0]}>
+          <boxGeometry args={[0.2, 2, 0.2]} />
+          <meshStandardMaterial color="#4e342e" />
+        </mesh>
+        <mesh castShadow receiveShadow position={[1.2, 1.5, 0]}>
+          <boxGeometry args={[0.2, 2, 0.2]} />
+          <meshStandardMaterial color="#4e342e" />
+        </mesh>
+        {/* Crossbeam */}
+        <mesh castShadow receiveShadow position={[0, 2.5, 0]}>
+          <boxGeometry args={[2.8, 0.2, 0.2]} />
+          <meshStandardMaterial color="#4e342e" />
+        </mesh>
+        {/* Rope */}
+        <mesh castShadow position={[0, 1.5, 0]}>
+          <cylinderGeometry args={[0.02, 0.02, 2, 8]} />
+          <meshStandardMaterial color="#d7ccc8" />
+        </mesh>
+      </group>
+    </RigidBody>
   );
 }
 
@@ -221,9 +292,9 @@ export function World() {
   // Procedural Generation
   const trees = useMemo(() => {
       const items = [];
-      for (let i = 0; i < 30; i++) {
+      for (let i = 0; i < 60; i++) {
           const angle = Math.random() * Math.PI * 2;
-          const radius = 15 + Math.random() * 30; // Spread out
+          const radius = 15 + Math.random() * 80; // Spread out more
           const x = Math.cos(angle) * radius;
           const z = Math.sin(angle) * radius;
           const scale = 0.8 + Math.random() * 0.8;
@@ -235,9 +306,9 @@ export function World() {
 
   const rocks = useMemo(() => {
       const items = [];
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 40; i++) {
           const angle = Math.random() * Math.PI * 2;
-          const radius = 10 + Math.random() * 35;
+          const radius = 10 + Math.random() * 85;
           const x = Math.cos(angle) * radius;
           const z = Math.sin(angle) * radius;
           const scale = 0.8 + Math.random() * 1.5;
@@ -249,9 +320,9 @@ export function World() {
   const bushes = useMemo(() => {
       const items = [];
       const colors = ['#556b2f', '#6b8e23', '#334411', '#8f9779'];
-      for (let i = 0; i < 50; i++) {
+      for (let i = 0; i < 100; i++) {
           const angle = Math.random() * Math.PI * 2;
-          const radius = 5 + Math.random() * 40;
+          const radius = 5 + Math.random() * 90;
           const x = Math.cos(angle) * radius;
           const z = Math.sin(angle) * radius;
           const scale = 0.6 + Math.random() * 0.6;
@@ -266,7 +337,7 @@ export function World() {
       {/* Ground - Moved to y=-2 to match physics/visuals */}
       <RigidBody type="fixed" colliders="hull">
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2, 0]} receiveShadow>
-          <planeGeometry args={[100, 100]} />
+          <planeGeometry args={[200, 200]} />
           <meshStandardMaterial map={texture} color="#4e342e" roughness={1} />
         </mesh>
       </RigidBody>
@@ -312,26 +383,34 @@ export function World() {
         </mesh>
       </RigidBody>
 
+      {/* New Biblical/Medieval Props */}
+      <Well position={[15, -2, -15]} />
+      <Pillar position={[20, -2, 10]} scale={1.2} />
+      <Pillar position={[24, -2, 10]} scale={1.2} broken />
+      <Pillar position={[22, -2, 14]} scale={1.2} />
+      <Pillar position={[-20, -2, -20]} scale={0.8} broken />
+      <Pillar position={[-22, -2, -18]} scale={0.8} />
+
       {/* Map Boundaries - Invisible Walls */}
       <RigidBody type="fixed" colliders="cuboid">
         {/* North Wall */}
-        <mesh position={[0, 10, -50]}>
-          <boxGeometry args={[100, 30, 1]} />
+        <mesh position={[0, 10, -100]}>
+          <boxGeometry args={[200, 30, 1]} />
           <meshBasicMaterial visible={false} />
         </mesh>
         {/* South Wall */}
-        <mesh position={[0, 10, 50]}>
-          <boxGeometry args={[100, 30, 1]} />
+        <mesh position={[0, 10, 100]}>
+          <boxGeometry args={[200, 30, 1]} />
           <meshBasicMaterial visible={false} />
         </mesh>
         {/* East Wall */}
-        <mesh position={[50, 10, 0]} rotation={[0, Math.PI / 2, 0]}>
-          <boxGeometry args={[100, 30, 1]} />
+        <mesh position={[100, 10, 0]} rotation={[0, Math.PI / 2, 0]}>
+          <boxGeometry args={[200, 30, 1]} />
           <meshBasicMaterial visible={false} />
         </mesh>
         {/* West Wall */}
-        <mesh position={[-50, 10, 0]} rotation={[0, Math.PI / 2, 0]}>
-          <boxGeometry args={[100, 30, 1]} />
+        <mesh position={[-100, 10, 0]} rotation={[0, Math.PI / 2, 0]}>
+          <boxGeometry args={[200, 30, 1]} />
           <meshBasicMaterial visible={false} />
         </mesh>
       </RigidBody>

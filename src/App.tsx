@@ -1,7 +1,8 @@
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Sky, PointerLockControls, Stars, Cloud } from '@react-three/drei';
 import { Physics } from '@react-three/rapier';
 import { Suspense, useEffect, useState, useRef } from 'react';
+import * as THREE from 'three';
 import { Player } from './components/Player';
 import { World } from './components/World';
 import { Stone } from './components/Stone';
@@ -64,17 +65,10 @@ function Spawner() {
 
 function UI() {
   const { health, score, isPaused, reset, togglePause } = useStore();
-  const [weapon, setWeapon] = useState('sling');
 
   useEffect(() => {
-    const handleWeaponSelect = (e: CustomEvent) => setWeapon(e.detail);
-    window.addEventListener('weaponSelect', handleWeaponSelect as EventListener);
-    return () => window.removeEventListener('weaponSelect', handleWeaponSelect as EventListener);
-  }, []);
-  
-  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'KeyP') {
+      if (e.code === 'KeyP' || e.code === 'Escape') {
         togglePause();
         if (!isPaused) {
           document.exitPointerLock();
@@ -98,6 +92,10 @@ function UI() {
 
   const handleJoystickStop = () => {
       window.dispatchEvent(new CustomEvent('joystickMove', { detail: { x: 0, y: 0 } }));
+  };
+
+  const triggerAttack = (type: 'sling' | 'knife') => {
+      window.dispatchEvent(new CustomEvent('attack', { detail: type }));
   };
 
   if (health <= 0) {
@@ -215,8 +213,8 @@ function UI() {
             
             {/* Stone Weapon */}
             <button
-            onClick={() => window.dispatchEvent(new CustomEvent('weaponSelect', { detail: 'sling' }))}
-            className={`w-18 h-18 p-3 rounded-xl border-2 flex flex-col items-center justify-center transition-all transform hover:scale-105 backdrop-blur-md ${weapon === 'sling' ? 'bg-yellow-900/40 border-yellow-500 text-yellow-500 shadow-[0_0_15px_rgba(250,204,21,0.3)]' : 'bg-black/40 border-gray-600 text-gray-400 hover:bg-black/60'}`}
+            onPointerDown={() => triggerAttack('sling')}
+            className="w-18 h-18 p-3 rounded-xl border-2 flex flex-col items-center justify-center transition-all transform hover:scale-105 backdrop-blur-md bg-yellow-900/40 border-yellow-500 text-yellow-500 shadow-[0_0_15px_rgba(250,204,21,0.3)] active:bg-yellow-800/60"
             >
             <RectangleVertical size={28} strokeWidth={2.5} />
             <span className="text-[10px] font-bold mt-1 tracking-wider">PEDRA</span>
@@ -237,8 +235,8 @@ function UI() {
 
             {/* Knife Weapon */}
             <button
-            onClick={() => window.dispatchEvent(new CustomEvent('weaponSelect', { detail: 'knife' }))}
-            className={`w-18 h-18 p-3 rounded-xl border-2 flex flex-col items-center justify-center transition-all transform hover:scale-105 backdrop-blur-md ${weapon === 'knife' ? 'bg-gray-100/20 border-white text-white shadow-[0_0_15px_rgba(255,255,255,0.3)]' : 'bg-black/40 border-gray-600 text-gray-400 hover:bg-black/60'}`}
+            onPointerDown={() => triggerAttack('knife')}
+            className="w-18 h-18 p-3 rounded-xl border-2 flex flex-col items-center justify-center transition-all transform hover:scale-105 backdrop-blur-md bg-gray-100/20 border-white text-white shadow-[0_0_15px_rgba(255,255,255,0.3)] active:bg-gray-300/40"
             >
             <Sword size={28} strokeWidth={2.5} />
             <span className="text-[10px] font-bold mt-1 tracking-wider">FACA</span>
@@ -251,7 +249,8 @@ function UI() {
         <p>WASD / Joystick para Mover</p>
         <p>ESPAÇO / Botão para Pular</p>
         <p>SHIFT / Botão para Esquiva</p>
-        <p>CLIQUE para Atirar</p>
+        <p>CLIQUE ESQUERDO para Faca</p>
+        <p>CLIQUE DIREITO para Funda</p>
       </div>
     </div>
   );
@@ -287,6 +286,86 @@ function AmbientSound() {
   return null;
 }
 
+function TouchCameraControls() {
+  const { camera, gl } = useThree();
+  const isPaused = useStore((state) => state.isPaused);
+  const euler = useRef(new THREE.Euler(0, 0, 0, 'YXZ'));
+  const previousTouch = useRef<{ x: number, y: number, id: number } | null>(null);
+
+  useEffect(() => {
+    if (isPaused) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      // Only track if we aren't already tracking a touch for the camera
+      if (previousTouch.current) return;
+      
+      // Find a touch on the right side of the screen
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const touch = e.changedTouches[i];
+        if (touch.clientX > window.innerWidth / 2) {
+          previousTouch.current = { x: touch.clientX, y: touch.clientY, id: touch.identifier };
+          break;
+        }
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!previousTouch.current) return;
+      
+      let touch: Touch | null = null;
+      for (let i = 0; i < e.touches.length; i++) {
+        if (e.touches[i].identifier === previousTouch.current.id) {
+           touch = e.touches[i];
+           break;
+        }
+      }
+      
+      if (!touch) return;
+
+      const movementX = touch.clientX - previousTouch.current.x;
+      const movementY = touch.clientY - previousTouch.current.y;
+
+      previousTouch.current = { x: touch.clientX, y: touch.clientY, id: touch.identifier };
+
+      euler.current.setFromQuaternion(camera.quaternion);
+
+      // Adjust sensitivity here
+      euler.current.y -= movementX * 0.005;
+      euler.current.x -= movementY * 0.005;
+
+      // Clamp pitch
+      euler.current.x = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, euler.current.x));
+
+      camera.quaternion.setFromEuler(euler.current);
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (!previousTouch.current) return;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === previousTouch.current.id) {
+          previousTouch.current = null;
+          break;
+        }
+      }
+    };
+
+    const canvas = gl.domElement;
+    canvas.addEventListener('touchstart', onTouchStart, { passive: true });
+    canvas.addEventListener('touchmove', onTouchMove, { passive: true });
+    canvas.addEventListener('touchend', onTouchEnd);
+    canvas.addEventListener('touchcancel', onTouchEnd);
+
+    return () => {
+      canvas.removeEventListener('touchstart', onTouchStart);
+      canvas.removeEventListener('touchmove', onTouchMove);
+      canvas.removeEventListener('touchend', onTouchEnd);
+      canvas.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [camera, gl, isPaused]);
+
+  return null;
+}
+
 function GameContent() {
   const stones = useStore((state) => state.stones);
   const enemies = useStore((state) => state.enemies);
@@ -298,6 +377,7 @@ function GameContent() {
       <Spawner />
       <Effects />
       <AmbientSound />
+      <TouchCameraControls />
       
       {stones.map((stone) => (
         <Stone key={stone.id} {...stone} />
@@ -337,24 +417,24 @@ export default function App() {
           <Cloud position={[4, 2, 0]} speed={0.2} opacity={0.75} />
           
           {/* Atmospheric Lighting */}
-          <ambientLight intensity={0.3} color="#ffccaa" /> {/* Warm ambient */}
+          <ambientLight intensity={0.6} color="#ffccaa" /> {/* Brighter warm ambient */}
           
           {/* Main directional light (Sun) - Warmer and lower angle */}
           <directionalLight 
-            position={[100, 10, 100]} 
-            intensity={1.5} 
+            position={[100, 50, 100]} 
+            intensity={2.5} 
             castShadow 
             color="#ffaa77" 
             shadow-mapSize={[2048, 2048]}
-            shadow-camera-left={-50}
-            shadow-camera-right={50}
-            shadow-camera-top={50}
-            shadow-camera-bottom={-50}
+            shadow-camera-left={-100}
+            shadow-camera-right={100}
+            shadow-camera-top={100}
+            shadow-camera-bottom={-100}
             shadow-bias={-0.0001}
           />
           
           {/* Rim light for characters */}
-          <spotLight position={[-10, 10, -10]} angle={0.5} intensity={1} color="#88ccff" />
+          <spotLight position={[-10, 10, -10]} angle={0.5} intensity={1.5} color="#88ccff" />
 
           <Physics gravity={[0, -9.81, 0]} paused={isPaused}>
             <GameContent />
