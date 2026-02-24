@@ -400,7 +400,7 @@ function StartScreen() {
     <div 
       className="absolute inset-0 flex flex-col items-center justify-center z-50 bg-cover bg-center bg-no-repeat"
       style={{
-        backgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.7)), url("https://images.unsplash.com/photo-1484591974057-265bb767ef71?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80")'
+        backgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.8)), url("https://images.unsplash.com/photo-1474564862106-35c8b211019a?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80")'
       }}
     >
       <div className="text-center p-8 bg-black/40 backdrop-blur-md rounded-2xl border border-white/20 shadow-2xl flex flex-col items-center">
