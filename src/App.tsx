@@ -64,7 +64,7 @@ function Spawner() {
 }
 
 function UI() {
-  const { health, score, isPaused, reset, togglePause } = useStore();
+  const { health, score, isPaused, reset, togglePause, enemies } = useStore();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -176,6 +176,9 @@ function UI() {
                 </div>
                 <div className="text-yellow-400 font-mono text-xl font-bold drop-shadow-md pl-1">
                     PONTOS: {score}
+                </div>
+                <div className="text-red-400 font-mono text-lg font-bold drop-shadow-md pl-1">
+                    INIMIGOS: {enemies.length}
                 </div>
             </div>
         </div>
@@ -390,60 +393,114 @@ function GameContent() {
   );
 }
 
+function StartScreen() {
+  const startGame = useStore((state) => state.startGame);
+
+  return (
+    <div 
+      className="absolute inset-0 flex flex-col items-center justify-center z-50 bg-cover bg-center bg-no-repeat"
+      style={{
+        backgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.7)), url("https://images.unsplash.com/photo-1484591974057-265bb767ef71?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80")'
+      }}
+    >
+      <div className="text-center p-8 bg-black/40 backdrop-blur-md rounded-2xl border border-white/20 shadow-2xl flex flex-col items-center">
+        <div className="flex flex-col items-center mb-12">
+          <span 
+            className="text-white text-2xl md:text-3xl tracking-[0.4em] uppercase mb-[-1.5rem] z-10 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
+            style={{ fontFamily: "'Cinzel', serif", fontWeight: 600 }}
+          >
+            KING
+          </span>
+          <h1 
+            className="text-8xl md:text-[10rem] text-white drop-shadow-[0_5px_15px_rgba(0,0,0,0.8)] leading-none" 
+            style={{ fontFamily: "'Pirata One', cursive" }}
+          >
+            David
+          </h1>
+          <span 
+            className="text-yellow-100/80 text-lg md:text-xl tracking-[0.3em] uppercase mt-2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
+            style={{ fontFamily: "'Cinzel', serif" }}
+          >
+            A Origem
+          </span>
+        </div>
+        
+        <button 
+          onClick={() => {
+            startGame();
+            const canvas = document.querySelector('canvas');
+            canvas?.requestPointerLock();
+          }}
+          className="px-12 py-4 bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-white font-bold text-2xl rounded-full transition-all hover:scale-110 active:scale-95 animate-breath hover:animate-none"
+        >
+          INICIAR JOGO
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const isPaused = useStore((state) => state.isPaused);
+  const isStarted = useStore((state) => state.isStarted);
 
   return (
     <div className="w-full h-screen bg-black">
-      <Canvas shadows camera={{ fov: 75 }}>
-        <Suspense fallback={null}>
-          {/* Dramatic Sunset Sky */}
-          <Sky 
-            sunPosition={[100, 10, 100]} 
-            turbidity={8} 
-            rayleigh={6} 
-            mieCoefficient={0.005} 
-            mieDirectionalG={0.8} 
-            inclination={0.49} 
-            azimuth={0.25} 
-          />
-          <Stars radius={100} depth={50} count={2000} factor={4} saturation={0} fade speed={1} />
-          
-          {/* Volumetric Clouds */}
-          <Cloud position={[-4, -2, -25]} speed={0.2} opacity={0.5} />
-          <Cloud position={[4, 2, -15]} speed={0.2} opacity={0.5} />
-          <Cloud position={[-4, 2, -10]} speed={0.2} opacity={1} />
-          <Cloud position={[4, -2, -5]} speed={0.2} opacity={0.5} />
-          <Cloud position={[4, 2, 0]} speed={0.2} opacity={0.75} />
-          
-          {/* Atmospheric Lighting */}
-          <ambientLight intensity={0.6} color="#ffccaa" /> {/* Brighter warm ambient */}
-          
-          {/* Main directional light (Sun) - Warmer and lower angle */}
-          <directionalLight 
-            position={[100, 50, 100]} 
-            intensity={2.5} 
-            castShadow 
-            color="#ffaa77" 
-            shadow-mapSize={[2048, 2048]}
-            shadow-camera-left={-100}
-            shadow-camera-right={100}
-            shadow-camera-top={100}
-            shadow-camera-bottom={-100}
-            shadow-bias={-0.0001}
-          />
-          
-          {/* Rim light for characters */}
-          <spotLight position={[-10, 10, -10]} angle={0.5} intensity={1.5} color="#88ccff" />
+      {!isStarted && <StartScreen />}
+      
+      {isStarted && (
+        <>
+          <Canvas shadows camera={{ fov: 75 }}>
+            <Suspense fallback={null}>
+              {/* Dramatic Sunset Sky */}
+              <Sky 
+                sunPosition={[100, 10, 100]} 
+                turbidity={8} 
+                rayleigh={6} 
+                mieCoefficient={0.005} 
+                mieDirectionalG={0.8} 
+                inclination={0.49} 
+                azimuth={0.25} 
+              />
+              <Stars radius={100} depth={50} count={2000} factor={4} saturation={0} fade speed={1} />
+              
+              {/* Volumetric Clouds */}
+              <Cloud position={[-4, -2, -25]} speed={0.2} opacity={0.5} />
+              <Cloud position={[4, 2, -15]} speed={0.2} opacity={0.5} />
+              <Cloud position={[-4, 2, -10]} speed={0.2} opacity={1} />
+              <Cloud position={[4, -2, -5]} speed={0.2} opacity={0.5} />
+              <Cloud position={[4, 2, 0]} speed={0.2} opacity={0.75} />
+              
+              {/* Atmospheric Lighting */}
+              <ambientLight intensity={0.6} color="#ffccaa" /> {/* Brighter warm ambient */}
+              
+              {/* Main directional light (Sun) - Warmer and lower angle */}
+              <directionalLight 
+                position={[100, 50, 100]} 
+                intensity={2.5} 
+                castShadow 
+                color="#ffaa77" 
+                shadow-mapSize={[2048, 2048]}
+                shadow-camera-left={-100}
+                shadow-camera-right={100}
+                shadow-camera-top={100}
+                shadow-camera-bottom={-100}
+                shadow-bias={-0.0001}
+              />
+              
+              {/* Rim light for characters */}
+              <spotLight position={[-10, 10, -10]} angle={0.5} intensity={1.5} color="#88ccff" />
 
-          <Physics gravity={[0, -9.81, 0]} paused={isPaused}>
-            <GameContent />
-          </Physics>
-          
-          <PointerLockControls />
-        </Suspense>
-      </Canvas>
-      <UI />
+              <Physics gravity={[0, -9.81, 0]} paused={isPaused}>
+                <GameContent />
+              </Physics>
+              
+              <PointerLockControls />
+            </Suspense>
+          </Canvas>
+          <UI />
+        </>
+      )}
     </div>
   );
 }

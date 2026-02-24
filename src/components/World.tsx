@@ -1,7 +1,8 @@
 import { RigidBody } from '@react-three/rapier';
 import { useTexture, Instance, Instances, Float } from '@react-three/drei';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { useMemo } from 'react';
+import { useMemo, useRef, useEffect } from 'react';
 
 function Tree({ position, scale = 1, type = 'normal' }: { position: [number, number, number], scale?: number, type?: 'normal' | 'dead' }) {
   const isDead = type === 'dead';
@@ -113,32 +114,74 @@ function Bush({ position, scale = 1, color = '#556b2f' }: { position: [number, n
 }
 
 function Grass() {
-  const count = 4000;
-  const positions = useMemo(() => {
-    const pos = [];
+  const count = 40000;
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const timeRef = useRef({ value: 0 });
+
+  const geometry = useMemo(() => {
+    const geo = new THREE.PlaneGeometry(0.2, 0.8);
+    geo.translate(0, 0.4, 0); // Translate so origin is at the bottom
+    return geo;
+  }, []);
+
+  useEffect(() => {
+    if (!meshRef.current) return;
+    const dummy = new THREE.Object3D();
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const radius = Math.random() * 98; 
       const x = Math.cos(angle) * radius;
       const z = Math.sin(angle) * radius;
-      pos.push({ x, z, scale: 0.5 + Math.random() * 0.8, rotation: Math.random() * Math.PI });
+      const scale = 0.5 + Math.random() * 0.8;
+      const rotation = Math.random() * Math.PI;
+      const tilt = (Math.random() - 0.5) * 0.2;
+      
+      dummy.position.set(x, -2.0, z); // Adjust Y because of geometry translation
+      dummy.scale.set(scale, scale, scale);
+      dummy.rotation.set(tilt, rotation, tilt);
+      dummy.updateMatrix();
+      meshRef.current.setMatrixAt(i, dummy.matrix);
     }
-    return pos;
-  }, []);
+    meshRef.current.instanceMatrix.needsUpdate = true;
+  }, [count]);
+
+  useFrame(({ clock }) => {
+    timeRef.current.value = clock.getElapsedTime();
+  });
+
+  const onBeforeCompile = (shader: any) => {
+    shader.uniforms.uTime = timeRef.current;
+    shader.vertexShader = `
+      uniform float uTime;
+      ${shader.vertexShader}
+    `;
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <begin_vertex>',
+      `
+      #include <begin_vertex>
+      
+      // Calculate wind based on instance position
+      vec4 instancePos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+      float wind = sin(uTime * 1.5 + instancePos.x * 0.2 + instancePos.z * 0.2) * 0.15 + sin(uTime * 3.0 + instancePos.x * 0.5) * 0.05;
+      
+      // Apply wind only to top vertices (y > 0)
+      if (position.y > 0.0) {
+        transformed.x += wind * position.y;
+        transformed.z += wind * position.y;
+      }
+      `
+    );
+  };
 
   return (
-    <Instances range={count}>
-      <planeGeometry args={[0.15, 0.6]} />
-      <meshStandardMaterial color="#556b2f" side={THREE.DoubleSide} />
-      {positions.map((p, i) => (
-        <Instance
-          key={i}
-          position={[p.x, -1.7, p.z]} // Adjusted to sit on ground at -2
-          scale={[p.scale, p.scale, p.scale]}
-          rotation={[0, p.rotation, 0]}
-        />
-      ))}
-    </Instances>
+    <instancedMesh ref={meshRef} args={[geometry, undefined, count]} receiveShadow>
+      <meshStandardMaterial 
+        color="#4a7c3a" 
+        side={THREE.DoubleSide} 
+        roughness={0.8}
+        onBeforeCompile={onBeforeCompile}
+      />
+    </instancedMesh>
   );
 }
 

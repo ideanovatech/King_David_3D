@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { RigidBody, RapierRigidBody, CapsuleCollider } from '@react-three/rapier';
 import { Html } from '@react-three/drei';
@@ -21,6 +21,8 @@ export function Enemy({ id, position, health }: EnemyProps) {
   
   const [isStaggered, setIsStaggered] = useState(false);
   const [isDead, setIsDead] = useState(false);
+  const [isDodgingEnemy, setIsDodgingEnemy] = useState(false);
+  const [isBlocking, setIsBlocking] = useState(false);
   
   // AI State
   const [state, setState] = useState<'chase' | 'search'>('chase');
@@ -31,12 +33,68 @@ export function Enemy({ id, position, health }: EnemyProps) {
   const ATTACK_COOLDOWN = 2000;
   const isAttacking = useRef(false);
 
+  // Listen for player attacks to trigger dodges/blocks
+  useEffect(() => {
+    const handlePlayerAttack = (e: CustomEvent) => {
+        if (isDead || isStaggered || isAttacking.current || isDodgingEnemy || isBlocking) return;
+        
+        if (!rigidBody.current || !playerRef.current) return;
+        const enemyPos = rigidBody.current.translation();
+        const playerPos = playerRef.current.translation();
+        const dist = new THREE.Vector3(enemyPos.x, 0, enemyPos.z).distanceTo(new THREE.Vector3(playerPos.x, 0, playerPos.z));
+        
+        if (dist < 15) {
+            const rand = Math.random();
+            if (rand < 0.3) {
+                // 30% chance to dodge
+                setIsDodgingEnemy(true);
+                const dir = new THREE.Vector3(enemyPos.x - playerPos.x, 0, enemyPos.z - playerPos.z).normalize();
+                // Add sideways movement
+                dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), (Math.random() > 0.5 ? 1 : -1) * Math.PI / 3);
+                rigidBody.current.applyImpulse({ x: dir.x * 15, y: 3, z: dir.z * 15 }, true);
+                
+                // Visual dodge roll/lean
+                if (group.current) {
+                    group.current.rotation.z = dir.x > 0 ? -0.5 : 0.5;
+                }
+                
+                setTimeout(() => {
+                    setIsDodgingEnemy(false);
+                    if (group.current) group.current.rotation.z = 0;
+                }, 600);
+            } else if (rand < 0.5) {
+                // 20% chance to block/brace
+                setIsBlocking(true);
+                if (group.current) {
+                    group.current.position.y = -0.2; // Crouch down
+                    group.current.rotation.x = 0.2; // Head down
+                }
+                setTimeout(() => {
+                    setIsBlocking(false);
+                    if (group.current) {
+                        group.current.position.y = 0;
+                        group.current.rotation.x = 0;
+                    }
+                }, 800);
+            }
+        }
+    };
+    
+    window.addEventListener('attack', handlePlayerAttack as EventListener);
+    return () => window.removeEventListener('attack', handlePlayerAttack as EventListener);
+  }, [isDead, isStaggered, isDodgingEnemy, isBlocking]);
+
   useFrame((clockState, delta) => {
     if (!rigidBody.current || !playerRef.current || isDead || isPaused) return;
 
-    if (isStaggered) {
+    if (isStaggered || isBlocking) {
       rigidBody.current.setLinvel({ x: 0, y: rigidBody.current.linvel().y, z: 0 }, true);
       return;
+    }
+
+    if (isDodgingEnemy) {
+        // Let physics handle the dodge impulse
+        return;
     }
 
     const enemyPos = rigidBody.current.translation();
@@ -158,7 +216,8 @@ export function Enemy({ id, position, health }: EnemyProps) {
   const handleHit = (impactPos?: THREE.Vector3) => {
     if (isDead) return;
 
-    const damage = 15;
+    // Reduce damage if blocking
+    const damage = isBlocking ? 5 : 15;
     const newHealth = health - damage;
     
     if (rigidBody.current) {
@@ -173,7 +232,9 @@ export function Enemy({ id, position, health }: EnemyProps) {
       if (playerRef.current) {
           const playerPos = playerRef.current.translation();
           const knockbackDir = new THREE.Vector3(pos.x - playerPos.x, 0, pos.z - playerPos.z).normalize();
-          rigidBody.current.applyImpulse({ x: knockbackDir.x * 10, y: 2, z: knockbackDir.z * 10 }, true);
+          // Less knockback if blocking
+          const knockbackForce = isBlocking ? 5 : 10;
+          rigidBody.current.applyImpulse({ x: knockbackDir.x * knockbackForce, y: 2, z: knockbackDir.z * knockbackForce }, true);
       }
     }
 
@@ -210,10 +271,27 @@ export function Enemy({ id, position, health }: EnemyProps) {
       
       // Stagger animation (visual shake)
       if (group.current) {
-          group.current.rotation.z = (Math.random() - 0.5) * 0.5;
-          setTimeout(() => {
-              if (group.current) group.current.rotation.z = 0;
-          }, 200);
+          // Lean back and shake
+          group.current.rotation.x = -0.5;
+          group.current.position.y = 0.2;
+          
+          let shakeCount = 0;
+          const shakeInterval = setInterval(() => {
+              if (group.current) {
+                  group.current.rotation.z = (Math.random() - 0.5) * 0.5;
+                  group.current.position.x = (Math.random() - 0.5) * 0.2;
+              }
+              shakeCount++;
+              if (shakeCount > 5) {
+                  clearInterval(shakeInterval);
+                  if (group.current) {
+                      group.current.rotation.z = 0;
+                      group.current.rotation.x = 0;
+                      group.current.position.x = 0;
+                      group.current.position.y = 0;
+                  }
+              }
+          }, 50);
       }
 
       setTimeout(() => {
