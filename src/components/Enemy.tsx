@@ -10,14 +10,14 @@ interface EnemyProps {
   id: string;
   position: [number, number, number];
   health: number;
+  maxHealth: number;
+  type: 'wolf' | 'bear' | 'lion';
 }
 
-const ENEMY_SPEED = 4;
-
-export function Enemy({ id, position, health }: EnemyProps) {
+export function Enemy({ id, position, health, maxHealth, type }: EnemyProps) {
   const rigidBody = useRef<RapierRigidBody>(null);
   const group = useRef<THREE.Group>(null);
-  const { removeEnemy, addScore, takeDamage, damageEnemy, addEffect, isPaused, isDodging } = useStore();
+  const { removeEnemy, addScore, takeDamage, damageEnemy, addEffect, isPaused, isDodging, incrementKills } = useStore();
   
   const [isStaggered, setIsStaggered] = useState(false);
   const [isDead, setIsDead] = useState(false);
@@ -30,8 +30,16 @@ export function Enemy({ id, position, health }: EnemyProps) {
   const lastSeenPlayer = useRef<number>(0);
 
   const lastAttackTime = useRef<number>(0);
-  const ATTACK_COOLDOWN = 2000;
+  const ATTACK_COOLDOWN = type === 'bear' ? 3000 : type === 'lion' ? 1500 : 2000;
   const isAttacking = useRef(false);
+
+  // Stats based on type
+  const ENEMY_SPEED = type === 'bear' ? 3 : type === 'lion' ? 5.5 : 4;
+  const ATTACK_DAMAGE = type === 'bear' ? 25 : type === 'lion' ? 35 : 15;
+  const SCALE = type === 'bear' ? 1.2 : type === 'lion' ? 1.0 : 0.7;
+  const BODY_COLOR = type === 'bear' ? '#4a2e15' : type === 'lion' ? '#c29b0c' : '#2a2a2a';
+  const MANE_COLOR = type === 'bear' ? '#2e1c0d' : type === 'lion' ? '#8b4513' : '#0a0a0a';
+  const EYE_COLOR = type === 'bear' ? '#ff4400' : type === 'lion' ? '#ffaa00' : '#ff0000';
 
   // Listen for player attacks to trigger dodges/blocks
   useEffect(() => {
@@ -85,7 +93,18 @@ export function Enemy({ id, position, health }: EnemyProps) {
   }, [isDead, isStaggered, isDodgingEnemy, isBlocking]);
 
   useFrame((clockState, delta) => {
-    if (!rigidBody.current || !playerRef.current || isDead || isPaused) return;
+    if (!rigidBody.current || !playerRef.current || isPaused) return;
+
+    if (isDead) {
+      if (group.current) {
+        // Death animation: fall over, sink, and shrink slightly
+        group.current.rotation.z = THREE.MathUtils.lerp(group.current.rotation.z, Math.PI / 2, 5 * delta);
+        group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, Math.PI / 4, 5 * delta);
+        group.current.position.y = THREE.MathUtils.lerp(group.current.position.y, -0.4, 2 * delta);
+        group.current.scale.setScalar(THREE.MathUtils.lerp(group.current.scale.x, 0, 1.5 * delta));
+      }
+      return;
+    }
 
     if (isStaggered || isBlocking) {
       rigidBody.current.setLinvel({ x: 0, y: rigidBody.current.linvel().y, z: 0 }, true);
@@ -142,7 +161,7 @@ export function Enemy({ id, position, health }: EnemyProps) {
                   // Check Hit
                   const hitDist = new THREE.Vector3(currentPos.x, 0, currentPos.z).distanceTo(new THREE.Vector3(pPos.x, 0, pPos.z));
                   if (hitDist < 3.5 && !useStore.getState().isDodging) {
-                      takeDamage(15);
+                      takeDamage(ATTACK_DAMAGE);
                       
                       // Attack Sound
                       const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/212/212-preview.mp3'); 
@@ -241,23 +260,18 @@ export function Enemy({ id, position, health }: EnemyProps) {
     if (newHealth <= 0) {
       setIsDead(true);
       addScore(50);
+      incrementKills();
       
       if (rigidBody.current) {
         const pos = rigidBody.current.translation();
         addEffect([pos.x, pos.y, pos.z], 'smoke');
 
-        // Ragdoll physics - fling body slightly
+        // Death knockback
         rigidBody.current.setLinvel({ 
           x: (Math.random() - 0.5) * 5, 
-          y: 3, 
+          y: 2, 
           z: (Math.random() - 0.5) * 5 
         }, true);
-        rigidBody.current.setAngvel({ 
-          x: (Math.random() - 0.5) * 10, 
-          y: (Math.random() - 0.5) * 10, 
-          z: (Math.random() - 0.5) * 10 
-        }, true);
-        rigidBody.current.setEnabledRotations(true, true, true, true);
       }
 
       setTimeout(() => {
@@ -315,67 +329,95 @@ export function Enemy({ id, position, health }: EnemyProps) {
       }}
     >
       <CapsuleCollider args={[0.4, 0.4]} position={[0, 0.4, 0]} /> {/* Increased collider size */}
-      <group ref={group} scale={0.7}> {/* Scaled down wolf */}
+      <group ref={group} scale={SCALE}> {/* Scaled based on type */}
         
         {/* Health Bar */}
-        <Html position={[0, 1.5, 0]} center>
-          <div className="w-16 h-2 bg-gray-700 border border-black rounded overflow-hidden">
-            <div 
-              className="h-full bg-red-600 transition-all duration-200"
-              style={{ width: `${(health / 30) * 100}%` }} // Assuming max health 30
-            />
-          </div>
-        </Html>
+        {!isDead && (
+          <Html position={[0, 1.5, 0]} center>
+            <div className="w-16 h-2 bg-gray-700 border border-black rounded overflow-hidden">
+              <div 
+                className="h-full bg-red-600 transition-all duration-200"
+                style={{ width: `${(health / maxHealth) * 100}%` }}
+              />
+            </div>
+          </Html>
+        )}
 
-        {/* Wolf Body - High Res & Menacing */}
+        {/* Enemy Body - High Res & Menacing */}
         <group position={[0, 0.4, 0]}>
            {/* Main Body - Muscular */}
           <mesh castShadow position={[0, 0.1, 0.1]} rotation={[Math.PI / 2, 0, 0]}>
             <capsuleGeometry args={[0.35, 0.9, 8, 16]} />
-            <meshStandardMaterial color={isStaggered ? "#800" : "#2a2a2a"} roughness={0.8} />
+            <meshStandardMaterial color={isStaggered ? "#800" : BODY_COLOR} roughness={0.8} />
           </mesh>
           
           {/* Fur/Mane - Spiky and dark */}
-          <mesh position={[0, 0.45, -0.3]} rotation={[-0.5, 0, 0]}>
-             <coneGeometry args={[0.15, 0.5, 8]} />
-             <meshStandardMaterial color="#0a0a0a" />
-          </mesh>
-          <mesh position={[0, 0.45, 0]} rotation={[-0.3, 0, 0]}>
-             <coneGeometry args={[0.15, 0.5, 8]} />
-             <meshStandardMaterial color="#0a0a0a" />
-          </mesh>
-          <mesh position={[0, 0.45, 0.3]} rotation={[-0.1, 0, 0]}>
-             <coneGeometry args={[0.15, 0.5, 8]} />
-             <meshStandardMaterial color="#0a0a0a" />
-          </mesh>
+          {type === 'lion' ? (
+            <mesh position={[0, 0.4, 0.4]} rotation={[-0.2, 0, 0]}>
+               <torusGeometry args={[0.35, 0.2, 16, 32]} />
+               <meshStandardMaterial color={MANE_COLOR} roughness={0.9} />
+            </mesh>
+          ) : type === 'bear' ? (
+            <>
+              {/* Bear Ears */}
+              <mesh position={[0.25, 0.6, 0.5]}>
+                <sphereGeometry args={[0.12, 8, 8]} />
+                <meshStandardMaterial color={BODY_COLOR} />
+              </mesh>
+              <mesh position={[-0.25, 0.6, 0.5]}>
+                <sphereGeometry args={[0.12, 8, 8]} />
+                <meshStandardMaterial color={BODY_COLOR} />
+              </mesh>
+              {/* Hump */}
+              <mesh position={[0, 0.5, 0]}>
+                <sphereGeometry args={[0.25, 16, 16]} />
+                <meshStandardMaterial color={BODY_COLOR} />
+              </mesh>
+            </>
+          ) : (
+            <>
+              <mesh position={[0, 0.45, -0.3]} rotation={[-0.5, 0, 0]}>
+                 <coneGeometry args={[0.15, 0.5, 8]} />
+                 <meshStandardMaterial color={MANE_COLOR} />
+              </mesh>
+              <mesh position={[0, 0.45, 0]} rotation={[-0.3, 0, 0]}>
+                 <coneGeometry args={[0.15, 0.5, 8]} />
+                 <meshStandardMaterial color={MANE_COLOR} />
+              </mesh>
+              <mesh position={[0, 0.45, 0.3]} rotation={[-0.1, 0, 0]}>
+                 <coneGeometry args={[0.15, 0.5, 8]} />
+                 <meshStandardMaterial color={MANE_COLOR} />
+              </mesh>
+            </>
+          )}
 
           {/* Head - More detailed */}
           <group position={[0, 0.4, 0.7]}>
             <mesh castShadow>
               <boxGeometry args={[0.45, 0.5, 0.6]} />
-              <meshStandardMaterial color={isStaggered ? "#800" : "#2a2a2a"} />
+              <meshStandardMaterial color={isStaggered ? "#800" : BODY_COLOR} />
             </mesh>
             
             {/* Glowing Eyes - Angled */}
             <mesh position={[0.18, 0.1, 0.25]} rotation={[0, -0.2, 0]}>
               <sphereGeometry args={[0.08, 16, 16]} />
-              <meshStandardMaterial color="#ff0000" emissive="#ff0000" emissiveIntensity={4} />
+              <meshStandardMaterial color={EYE_COLOR} emissive={EYE_COLOR} emissiveIntensity={4} />
             </mesh>
             <mesh position={[-0.18, 0.1, 0.25]} rotation={[0, 0.2, 0]}>
               <sphereGeometry args={[0.08, 16, 16]} />
-              <meshStandardMaterial color="#ff0000" emissive="#ff0000" emissiveIntensity={4} />
+              <meshStandardMaterial color={EYE_COLOR} emissive={EYE_COLOR} emissiveIntensity={4} />
             </mesh>
             
             {/* Brow Ridge */}
              <mesh position={[0, 0.25, 0.28]} rotation={[0.2, 0, 0]}>
                <boxGeometry args={[0.5, 0.1, 0.2]} />
-               <meshStandardMaterial color="#1a1a1a" />
+               <meshStandardMaterial color={MANE_COLOR} />
              </mesh>
 
             {/* Snout & Teeth - Longer and sharper */}
             <mesh castShadow position={[0, -0.1, 0.5]}>
               <boxGeometry args={[0.28, 0.25, 0.5]} />
-              <meshStandardMaterial color="#1a1a1a" />
+              <meshStandardMaterial color={MANE_COLOR} />
             </mesh>
             
             {/* Fangs */}

@@ -73,19 +73,15 @@ export function Stone({ id, position, velocity }: StoneProps) {
       }}
     >
       <BallCollider args={[0.3]} /> {/* Larger collider for better hit detection */}
-      <mesh castShadow>
-        <sphereGeometry args={[0.1, 16, 16]} />
-        <meshStandardMaterial color="#888" />
-      </mesh>
       <Trail
-        width={0.2}
-        length={4}
-        color="#F8F8F8"
+        width={0.15}
+        length={12}
+        color="#ffffff"
         attenuation={(t) => t * t}
       >
-        <mesh visible={false}>
-            <sphereGeometry args={[0.1]} />
-            <meshBasicMaterial />
+        <mesh castShadow>
+          <sphereGeometry args={[0.1, 16, 16]} />
+          <meshStandardMaterial color="#888" />
         </mesh>
       </Trail>
     </RigidBody>

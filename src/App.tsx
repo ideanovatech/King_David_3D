@@ -16,21 +16,78 @@ function Spawner() {
   const spawnEnemy = useStore((state) => state.spawnEnemy);
   const enemies = useStore((state) => state.enemies);
   const isPaused = useStore((state) => state.isPaused);
+  const phase = useStore((state) => state.phase);
+  const enemiesKilledInPhase = useStore((state) => state.enemiesKilledInPhase);
+  const setPhaseMessage = useStore((state) => state.setPhaseMessage);
+  const nextPhase = useStore((state) => state.nextPhase);
+  const isTransitioningPhase = useStore((state) => state.isTransitioningPhase);
   
   const stateRef = useRef({
-      totalSpawned: 0,
+      totalSpawnedInPhase: 0,
       nextWaveTime: 0,
-      spawning: false
+      spawning: false,
+      currentPhase: 1
   });
 
   useFrame(({ clock }) => {
-    if (isPaused) return;
+    if (isPaused || isTransitioningPhase) return;
     
     const state = stateRef.current;
     
-    if (state.totalSpawned >= 10) return;
+    // Reset state if phase changed
+    if (state.currentPhase !== phase) {
+      state.currentPhase = phase;
+      state.totalSpawnedInPhase = 0;
+      state.nextWaveTime = 0;
+      state.spawning = false;
+    }
 
-    if (enemies.length > 0) {
+    let targetKills = 0;
+    let maxAtOnce = 0;
+    let enemyType: 'wolf' | 'bear' | 'lion' = 'wolf';
+    let enemyHealth = 30;
+
+    if (phase === 1) {
+      targetKills = 10;
+      maxAtOnce = 3;
+      enemyType = 'wolf';
+      enemyHealth = 30;
+    } else if (phase === 2) {
+      targetKills = 6;
+      maxAtOnce = 2;
+      enemyType = 'bear';
+      enemyHealth = 60;
+    } else if (phase === 3) {
+      targetKills = 1;
+      maxAtOnce = 1;
+      enemyType = 'lion';
+      enemyHealth = 150;
+    } else {
+      // Game over or infinite mode
+      return;
+    }
+
+    // Check for phase completion
+    if (enemiesKilledInPhase >= targetKills && !isTransitioningPhase) {
+      if (phase === 1) {
+        setPhaseMessage("Parabéns, você venceu os lobos! Prepare-se para enfrentar o Urso.");
+        setTimeout(() => nextPhase(), 5000);
+      } else if (phase === 2) {
+        setPhaseMessage("Parabéns, você venceu os ursos! Prepare-se para enfrentar o poderoso Leão.");
+        setTimeout(() => nextPhase(), 5000);
+      } else if (phase === 3) {
+        setPhaseMessage("Parabéns! Você venceu o Leão e provou seu valor!");
+        setTimeout(() => {
+          useStore.getState().reset();
+          window.location.reload();
+        }, 8000);
+      }
+      return;
+    }
+
+    if (state.totalSpawnedInPhase >= targetKills) return;
+
+    if (enemies.length >= maxAtOnce) {
         state.spawning = false;
         state.nextWaveTime = 0;
         return;
@@ -48,15 +105,15 @@ function Spawner() {
     if (now >= state.nextWaveTime) {
         state.spawning = true;
         
-        const countToSpawn = Math.min(2, 10 - state.totalSpawned);
+        const countToSpawn = Math.min(maxAtOnce - enemies.length, targetKills - state.totalSpawnedInPhase);
         for (let i = 0; i < countToSpawn; i++) {
             const angle = Math.random() * Math.PI * 2;
             const radius = 15 + Math.random() * 10;
             const x = Math.cos(angle) * radius;
             const z = Math.sin(angle) * radius;
-            spawnEnemy([x, 2, z]);
+            spawnEnemy([x, 2, z], enemyType, enemyHealth);
         }
-        state.totalSpawned += countToSpawn;
+        state.totalSpawnedInPhase += countToSpawn;
     }
   });
 
@@ -64,7 +121,7 @@ function Spawner() {
 }
 
 function UI() {
-  const { health, score, isPaused, reset, togglePause, enemies } = useStore();
+  const { health, score, isPaused, reset, togglePause, enemies, phase, phaseMessage } = useStore();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -180,9 +237,23 @@ function UI() {
                 <div className="text-red-400 font-mono text-lg font-bold drop-shadow-md pl-1">
                     INIMIGOS: {enemies.length}
                 </div>
+                <div className="text-blue-400 font-mono text-lg font-bold drop-shadow-md pl-1">
+                    FASE: {phase}
+                </div>
             </div>
         </div>
       </div>
+
+      {/* Phase Transition Message */}
+      {phaseMessage && (
+        <div className="absolute inset-0 flex items-center justify-center z-40 bg-black/50 backdrop-blur-sm">
+          <div className="text-center p-8 bg-black/80 border-2 border-yellow-500 rounded-xl shadow-[0_0_30px_rgba(234,179,8,0.5)] animate-bounce">
+            <h2 className="text-4xl md:text-5xl text-yellow-400 font-bold mb-4" style={{ fontFamily: "'Cinzel', serif" }}>
+              {phaseMessage}
+            </h2>
+          </div>
+        </div>
+      )}
       
       {/* Top Right: Pause Button */}
       <div className="absolute top-4 right-4 pointer-events-auto">
@@ -400,7 +471,7 @@ function StartScreen() {
     <div 
       className="absolute inset-0 flex flex-col items-center justify-center z-50 bg-cover bg-center bg-no-repeat"
       style={{
-        backgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.8)), url("https://images.unsplash.com/photo-1474564862106-35c8b211019a?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80")'
+        backgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.8)), url("https://image.pollinations.ai/prompt/A%20shepherd%20seen%20from%20behind%20walking%20away%20into%20a%20golden%20sunset%20with%20a%20flock%20of%20sheep%2C%20dark%20cloak%2C%20wooden%20staff%2C%20cinematic%20fantasy%20art%20style%2C%20glowing%20light%2C%20dramatic%20sky%2C%20highly%20detailed%20digital%20painting?width=1920&height=1080&nologo=true")'
       }}
     >
       <div className="text-center p-8 bg-black/40 backdrop-blur-md rounded-2xl border border-white/20 shadow-2xl flex flex-col items-center">
@@ -413,7 +484,7 @@ function StartScreen() {
           </span>
           <h1 
             className="text-8xl md:text-[10rem] text-white drop-shadow-[0_5px_15px_rgba(0,0,0,0.8)] leading-none" 
-            style={{ fontFamily: "'Pirata One', cursive" }}
+            style={{ fontFamily: "'UnifrakturMaguntia', cursive" }}
           >
             David
           </h1>
@@ -431,7 +502,8 @@ function StartScreen() {
             const canvas = document.querySelector('canvas');
             canvas?.requestPointerLock();
           }}
-          className="px-12 py-4 bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-white font-bold text-2xl rounded-full transition-all hover:scale-110 active:scale-95 animate-breath hover:animate-none"
+          className="px-16 py-4 bg-[#EAB308] hover:bg-[#FACC15] text-white text-xl rounded-full transition-all hover:scale-105 active:scale-95 shadow-[0_0_40px_rgba(234,179,8,0.6)] hover:shadow-[0_0_60px_rgba(234,179,8,0.8)]"
+          style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, letterSpacing: "1px" }}
         >
           INICIAR JOGO
         </button>

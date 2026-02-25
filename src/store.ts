@@ -11,6 +11,8 @@ interface Enemy {
   id: string;
   position: [number, number, number];
   health: number;
+  maxHealth: number;
+  type: 'wolf' | 'bear' | 'lion';
 }
 
 interface Effect {
@@ -26,6 +28,10 @@ interface GameState {
   isPaused: boolean;
   isDodging: boolean;
   isStarted: boolean;
+  phase: number;
+  enemiesKilledInPhase: number;
+  phaseMessage: string | null;
+  isTransitioningPhase: boolean;
   stones: Stone[];
   enemies: Enemy[];
   effects: Effect[];
@@ -38,10 +44,13 @@ interface GameState {
   reset: () => void;
   shootStone: (position: [number, number, number], velocity: [number, number, number]) => void;
   removeStone: (id: string) => void;
-  spawnEnemy: (position: [number, number, number]) => void;
+  spawnEnemy: (position: [number, number, number], type: 'wolf' | 'bear' | 'lion', health: number) => void;
   removeEnemy: (id: string) => void;
   addEffect: (position: [number, number, number], type: 'impact' | 'blood' | 'smoke' | 'flash') => void;
   removeEffect: (id: string) => void;
+  setPhaseMessage: (message: string | null) => void;
+  nextPhase: () => void;
+  incrementKills: () => void;
 }
 
 export const useStore = create<GameState>((set) => ({
@@ -50,6 +59,10 @@ export const useStore = create<GameState>((set) => ({
   isPaused: false,
   isDodging: false,
   isStarted: false,
+  phase: 1,
+  enemiesKilledInPhase: 0,
+  phaseMessage: null,
+  isTransitioningPhase: false,
   stones: [],
   enemies: [],
   effects: [],
@@ -60,16 +73,16 @@ export const useStore = create<GameState>((set) => ({
   addScore: (amount) => set((state) => ({ score: state.score + amount })),
   togglePause: () => set((state) => ({ isPaused: !state.isPaused })),
   setDodging: (dodging) => set({ isDodging: dodging }),
-  startGame: () => set({ isStarted: true, health: 100, score: 0, isPaused: false, stones: [], enemies: [], effects: [] }),
-  reset: () => set({ health: 100, score: 0, isPaused: false, isDodging: false, isStarted: false, stones: [], enemies: [], effects: [] }),
+  startGame: () => set({ isStarted: true, health: 100, score: 0, isPaused: false, phase: 1, enemiesKilledInPhase: 0, phaseMessage: null, isTransitioningPhase: false, stones: [], enemies: [], effects: [] }),
+  reset: () => set({ health: 100, score: 0, isPaused: false, isDodging: false, isStarted: false, phase: 1, enemiesKilledInPhase: 0, phaseMessage: null, isTransitioningPhase: false, stones: [], enemies: [], effects: [] }),
   shootStone: (position, velocity) => set((state) => ({
     stones: [...state.stones, { id: nanoid(), position, velocity }]
   })),
   removeStone: (id) => set((state) => ({
     stones: state.stones.filter((s) => s.id !== id)
   })),
-  spawnEnemy: (position) => set((state) => ({
-    enemies: [...state.enemies, { id: nanoid(), position, health: 30 }]
+  spawnEnemy: (position, type, health) => set((state) => ({
+    enemies: [...state.enemies, { id: nanoid(), position, health, maxHealth: health, type }]
   })),
   removeEnemy: (id) => set((state) => ({
     enemies: state.enemies.filter((e) => e.id !== id)
@@ -80,4 +93,7 @@ export const useStore = create<GameState>((set) => ({
   removeEffect: (id) => set((state) => ({
     effects: state.effects.filter((e) => e.id !== id)
   })),
+  setPhaseMessage: (message) => set({ phaseMessage: message, isTransitioningPhase: message !== null }),
+  nextPhase: () => set((state) => ({ phase: state.phase + 1, enemiesKilledInPhase: 0, phaseMessage: null, isTransitioningPhase: false })),
+  incrementKills: () => set((state) => ({ enemiesKilledInPhase: state.enemiesKilledInPhase + 1 })),
 }));
