@@ -11,6 +11,7 @@ import { Effects } from './components/Effects';
 import { useStore } from './store';
 import { Joystick } from './components/Joystick';
 import { Sword, RectangleVertical } from 'lucide-react';
+import { StoryScreen } from './components/StoryScreen';
 
 function Spawner() {
   const spawnEnemy = useStore((state) => state.spawnEnemy);
@@ -464,61 +465,13 @@ function GameContent() {
   );
 }
 
-function StartScreen() {
-  const startGame = useStore((state) => state.startGame);
-
-  return (
-    <div 
-      className="absolute inset-0 flex flex-col items-center justify-center z-50 bg-cover bg-center bg-no-repeat"
-      style={{
-        backgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.8)), url("https://image.pollinations.ai/prompt/A%20shepherd%20seen%20from%20behind%20walking%20away%20into%20a%20golden%20sunset%20with%20a%20flock%20of%20sheep%2C%20dark%20cloak%2C%20wooden%20staff%2C%20cinematic%20fantasy%20art%20style%2C%20glowing%20light%2C%20dramatic%20sky%2C%20highly%20detailed%20digital%20painting?width=1920&height=1080&nologo=true")'
-      }}
-    >
-      <div className="text-center p-8 bg-black/40 backdrop-blur-md rounded-2xl border border-white/20 shadow-2xl flex flex-col items-center">
-        <div className="flex flex-col items-center mb-12">
-          <span 
-            className="text-white text-2xl md:text-3xl tracking-[0.4em] uppercase mb-[-1.5rem] z-10 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
-            style={{ fontFamily: "'Cinzel', serif", fontWeight: 600 }}
-          >
-            KING
-          </span>
-          <h1 
-            className="text-8xl md:text-[10rem] text-white drop-shadow-[0_5px_15px_rgba(0,0,0,0.8)] leading-none" 
-            style={{ fontFamily: "'UnifrakturMaguntia', cursive" }}
-          >
-            David
-          </h1>
-          <span 
-            className="text-yellow-100/80 text-lg md:text-xl tracking-[0.3em] uppercase mt-2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
-            style={{ fontFamily: "'Cinzel', serif" }}
-          >
-            A Origem
-          </span>
-        </div>
-        
-        <button 
-          onClick={() => {
-            startGame();
-            const canvas = document.querySelector('canvas');
-            canvas?.requestPointerLock();
-          }}
-          className="px-16 py-4 bg-[#EAB308] hover:bg-[#FACC15] text-white text-xl rounded-full transition-all hover:scale-105 active:scale-95 shadow-[0_0_40px_rgba(234,179,8,0.6)] hover:shadow-[0_0_60px_rgba(234,179,8,0.8)]"
-          style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, letterSpacing: "1px" }}
-        >
-          INICIAR JOGO
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export default function App() {
   const isPaused = useStore((state) => state.isPaused);
   const isStarted = useStore((state) => state.isStarted);
 
   return (
     <div className="w-full h-screen bg-black">
-      {!isStarted && <StartScreen />}
+      {!isStarted && <StoryScreen />}
       
       {isStarted && (
         <>

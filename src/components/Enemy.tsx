@@ -97,11 +97,23 @@ export function Enemy({ id, position, health, maxHealth, type }: EnemyProps) {
 
     if (isDead) {
       if (group.current) {
-        // Death animation: fall over, sink, and shrink slightly
-        group.current.rotation.z = THREE.MathUtils.lerp(group.current.rotation.z, Math.PI / 2, 5 * delta);
-        group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, Math.PI / 4, 5 * delta);
-        group.current.position.y = THREE.MathUtils.lerp(group.current.position.y, -0.4, 2 * delta);
-        group.current.scale.setScalar(THREE.MathUtils.lerp(group.current.scale.x, 0, 1.5 * delta));
+        // Death animation based on type
+        if (type === 'bear') {
+          // Bear falls backward heavily
+          group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, -Math.PI / 2, 3 * delta);
+          group.current.position.y = THREE.MathUtils.lerp(group.current.position.y, -0.2, 2 * delta);
+        } else if (type === 'lion') {
+          // Lion slumps forward and to the side
+          group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, Math.PI / 3, 4 * delta);
+          group.current.rotation.z = THREE.MathUtils.lerp(group.current.rotation.z, Math.PI / 2, 4 * delta);
+          group.current.position.y = THREE.MathUtils.lerp(group.current.position.y, -0.3, 3 * delta);
+        } else {
+          // Wolf falls over and shrinks slightly
+          group.current.rotation.z = THREE.MathUtils.lerp(group.current.rotation.z, Math.PI / 2, 5 * delta);
+          group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, Math.PI / 4, 5 * delta);
+          group.current.position.y = THREE.MathUtils.lerp(group.current.position.y, -0.4, 2 * delta);
+          group.current.scale.setScalar(THREE.MathUtils.lerp(group.current.scale.x, 0, 1.5 * delta));
+        }
       }
       return;
     }
@@ -347,31 +359,51 @@ export function Enemy({ id, position, health, maxHealth, type }: EnemyProps) {
         <group position={[0, 0.4, 0]}>
            {/* Main Body - Muscular */}
           <mesh castShadow position={[0, 0.1, 0.1]} rotation={[Math.PI / 2, 0, 0]}>
-            <capsuleGeometry args={[0.35, 0.9, 8, 16]} />
-            <meshStandardMaterial color={isStaggered ? "#800" : BODY_COLOR} roughness={0.8} />
+            <capsuleGeometry args={type === 'bear' ? [0.45, 1.0, 16, 32] : type === 'lion' ? [0.35, 1.1, 16, 32] : [0.35, 0.9, 8, 16]} />
+            <meshStandardMaterial color={isStaggered ? "#800" : BODY_COLOR} roughness={0.9} />
           </mesh>
           
           {/* Fur/Mane - Spiky and dark */}
           {type === 'lion' ? (
-            <mesh position={[0, 0.4, 0.4]} rotation={[-0.2, 0, 0]}>
-               <torusGeometry args={[0.35, 0.2, 16, 32]} />
-               <meshStandardMaterial color={MANE_COLOR} roughness={0.9} />
-            </mesh>
+            <group position={[0, 0.4, 0.4]} rotation={[-0.2, 0, 0]}>
+               {/* Main Mane */}
+               <mesh>
+                 <torusGeometry args={[0.38, 0.25, 16, 32]} />
+                 <meshStandardMaterial color={MANE_COLOR} roughness={1} />
+               </mesh>
+               {/* Secondary Mane layer for volume */}
+               <mesh position={[0, 0, -0.15]} scale={1.1}>
+                 <torusGeometry args={[0.35, 0.2, 16, 32]} />
+                 <meshStandardMaterial color={MANE_COLOR} roughness={1} />
+               </mesh>
+               {/* Spiky bits of mane */}
+               {[...Array(8)].map((_, i) => (
+                 <mesh key={i} position={[Math.cos(i * Math.PI / 4) * 0.4, Math.sin(i * Math.PI / 4) * 0.4, 0]} rotation={[0, 0, i * Math.PI / 4]}>
+                   <coneGeometry args={[0.1, 0.3, 4]} />
+                   <meshStandardMaterial color={MANE_COLOR} roughness={1} />
+                 </mesh>
+               ))}
+            </group>
           ) : type === 'bear' ? (
             <>
               {/* Bear Ears */}
               <mesh position={[0.25, 0.6, 0.5]}>
-                <sphereGeometry args={[0.12, 8, 8]} />
-                <meshStandardMaterial color={BODY_COLOR} />
+                <sphereGeometry args={[0.12, 16, 16]} />
+                <meshStandardMaterial color={BODY_COLOR} roughness={0.9} />
               </mesh>
               <mesh position={[-0.25, 0.6, 0.5]}>
-                <sphereGeometry args={[0.12, 8, 8]} />
-                <meshStandardMaterial color={BODY_COLOR} />
+                <sphereGeometry args={[0.12, 16, 16]} />
+                <meshStandardMaterial color={BODY_COLOR} roughness={0.9} />
               </mesh>
               {/* Hump */}
-              <mesh position={[0, 0.5, 0]}>
-                <sphereGeometry args={[0.25, 16, 16]} />
-                <meshStandardMaterial color={BODY_COLOR} />
+              <mesh position={[0, 0.55, 0.1]}>
+                <sphereGeometry args={[0.3, 16, 16]} />
+                <meshStandardMaterial color={BODY_COLOR} roughness={0.9} />
+              </mesh>
+              {/* Thicker Neck */}
+              <mesh position={[0, 0.3, 0.4]} rotation={[Math.PI / 4, 0, 0]}>
+                <cylinderGeometry args={[0.35, 0.4, 0.5, 16]} />
+                <meshStandardMaterial color={BODY_COLOR} roughness={0.9} />
               </mesh>
             </>
           ) : (
@@ -394,8 +426,8 @@ export function Enemy({ id, position, health, maxHealth, type }: EnemyProps) {
           {/* Head - More detailed */}
           <group position={[0, 0.4, 0.7]}>
             <mesh castShadow>
-              <boxGeometry args={[0.45, 0.5, 0.6]} />
-              <meshStandardMaterial color={isStaggered ? "#800" : BODY_COLOR} />
+              <boxGeometry args={type === 'bear' ? [0.55, 0.5, 0.6] : type === 'lion' ? [0.45, 0.55, 0.65] : [0.45, 0.5, 0.6]} />
+              <meshStandardMaterial color={isStaggered ? "#800" : BODY_COLOR} roughness={0.9} />
             </mesh>
             
             {/* Glowing Eyes - Angled */}
@@ -410,62 +442,102 @@ export function Enemy({ id, position, health, maxHealth, type }: EnemyProps) {
             
             {/* Brow Ridge */}
              <mesh position={[0, 0.25, 0.28]} rotation={[0.2, 0, 0]}>
-               <boxGeometry args={[0.5, 0.1, 0.2]} />
-               <meshStandardMaterial color={MANE_COLOR} />
+               <boxGeometry args={type === 'bear' ? [0.6, 0.15, 0.2] : [0.5, 0.1, 0.2]} />
+               <meshStandardMaterial color={MANE_COLOR} roughness={0.9} />
              </mesh>
 
             {/* Snout & Teeth - Longer and sharper */}
             <mesh castShadow position={[0, -0.1, 0.5]}>
-              <boxGeometry args={[0.28, 0.25, 0.5]} />
-              <meshStandardMaterial color={MANE_COLOR} />
+              <boxGeometry args={type === 'bear' ? [0.35, 0.3, 0.5] : type === 'lion' ? [0.3, 0.25, 0.6] : [0.28, 0.25, 0.5]} />
+              <meshStandardMaterial color={type === 'bear' ? BODY_COLOR : MANE_COLOR} roughness={0.9} />
+            </mesh>
+            
+            {/* Nose */}
+            <mesh position={[0, 0.05, type === 'lion' ? 0.8 : 0.75]}>
+              <sphereGeometry args={[0.06, 8, 8]} />
+              <meshStandardMaterial color="#111" roughness={0.5} />
             </mesh>
             
             {/* Fangs */}
             <mesh position={[0.1, -0.25, 0.6]} rotation={[Math.PI, 0, 0]}>
-               <coneGeometry args={[0.04, 0.15, 8]} />
+               <coneGeometry args={type === 'bear' ? [0.05, 0.15, 8] : type === 'lion' ? [0.04, 0.2, 8] : [0.04, 0.15, 8]} />
                <meshStandardMaterial color="#ffffee" roughness={0.2} />
             </mesh>
             <mesh position={[-0.1, -0.25, 0.6]} rotation={[Math.PI, 0, 0]}>
-               <coneGeometry args={[0.04, 0.15, 8]} />
+               <coneGeometry args={type === 'bear' ? [0.05, 0.15, 8] : type === 'lion' ? [0.04, 0.2, 8] : [0.04, 0.15, 8]} />
                <meshStandardMaterial color="#ffffee" roughness={0.2} />
             </mesh>
 
-            {/* Ears - Pointy */}
-            <mesh position={[0.2, 0.35, -0.1]} rotation={[-0.2, 0, 0.2]}>
-              <coneGeometry args={[0.1, 0.35, 8]} />
-              <meshStandardMaterial color="#2a2a2a" />
-            </mesh>
-            <mesh position={[-0.2, 0.35, -0.1]} rotation={[-0.2, 0, -0.2]}>
-              <coneGeometry args={[0.1, 0.35, 8]} />
-              <meshStandardMaterial color="#2a2a2a" />
-            </mesh>
+            {/* Ears */}
+            {type === 'wolf' && (
+              <>
+                <mesh position={[0.2, 0.35, -0.1]} rotation={[-0.2, 0, 0.2]}>
+                  <coneGeometry args={[0.1, 0.35, 8]} />
+                  <meshStandardMaterial color={BODY_COLOR} />
+                </mesh>
+                <mesh position={[-0.2, 0.35, -0.1]} rotation={[-0.2, 0, -0.2]}>
+                  <coneGeometry args={[0.1, 0.35, 8]} />
+                  <meshStandardMaterial color={BODY_COLOR} />
+                </mesh>
+              </>
+            )}
+            {type === 'lion' && (
+              <>
+                <mesh position={[0.25, 0.25, -0.1]} rotation={[-0.2, 0, 0.2]}>
+                  <sphereGeometry args={[0.1, 8, 8]} />
+                  <meshStandardMaterial color={BODY_COLOR} />
+                </mesh>
+                <mesh position={[-0.25, 0.25, -0.1]} rotation={[-0.2, 0, -0.2]}>
+                  <sphereGeometry args={[0.1, 8, 8]} />
+                  <meshStandardMaterial color={BODY_COLOR} />
+                </mesh>
+              </>
+            )}
           </group>
 
           {/* Legs - Thicker */}
           <group>
               <mesh position={[0.25, -0.4, 0.4]} rotation={[0.2, 0, 0]}>
                  <cylinderGeometry args={[0.08, 0.06, 0.7, 8]} />
-                 <meshStandardMaterial color="#1a1a1a" />
+                 <meshStandardMaterial color={BODY_COLOR} />
               </mesh>
               <mesh position={[-0.25, -0.4, 0.4]} rotation={[0.2, 0, 0]}>
                  <cylinderGeometry args={[0.08, 0.06, 0.7, 8]} />
-                 <meshStandardMaterial color="#1a1a1a" />
+                 <meshStandardMaterial color={BODY_COLOR} />
               </mesh>
               <mesh position={[0.25, -0.4, -0.4]} rotation={[-0.2, 0, 0]}>
                  <cylinderGeometry args={[0.08, 0.06, 0.7, 8]} />
-                 <meshStandardMaterial color="#1a1a1a" />
+                 <meshStandardMaterial color={BODY_COLOR} />
               </mesh>
               <mesh position={[-0.25, -0.4, -0.4]} rotation={[-0.2, 0, 0]}>
                  <cylinderGeometry args={[0.08, 0.06, 0.7, 8]} />
-                 <meshStandardMaterial color="#1a1a1a" />
+                 <meshStandardMaterial color={BODY_COLOR} />
               </mesh>
           </group>
           
           {/* Tail - Bushy */}
-          <mesh position={[0, 0.2, -0.6]} rotation={[-0.4, 0, 0]}>
-             <cylinderGeometry args={[0.1, 0.02, 0.8, 8]} />
-             <meshStandardMaterial color="#2a2a2a" />
-          </mesh>
+          {type === 'wolf' && (
+            <mesh position={[0, 0.2, -0.6]} rotation={[-0.4, 0, 0]}>
+               <cylinderGeometry args={[0.1, 0.02, 0.8, 8]} />
+               <meshStandardMaterial color={BODY_COLOR} />
+            </mesh>
+          )}
+          {type === 'lion' && (
+            <group position={[0, 0.2, -0.6]} rotation={[-0.4, 0, 0]}>
+               <cylinderGeometry args={[0.03, 0.03, 0.8, 8]} />
+               <meshStandardMaterial color={BODY_COLOR} />
+               <mesh position={[0, -0.4, 0]}>
+                 <sphereGeometry args={[0.08, 8, 8]} />
+                 <meshStandardMaterial color={MANE_COLOR} />
+               </mesh>
+            </group>
+          )}
+          {type === 'bear' && (
+            <mesh position={[0, 0.2, -0.4]} rotation={[-0.4, 0, 0]}>
+               <sphereGeometry args={[0.15, 8, 8]} />
+               <meshStandardMaterial color={BODY_COLOR} />
+            </mesh>
+          )}
         </group>
       </group>
     </RigidBody>

@@ -32,6 +32,7 @@ interface GameState {
   enemiesKilledInPhase: number;
   phaseMessage: string | null;
   isTransitioningPhase: boolean;
+  storyScreen: number;
   stones: Stone[];
   enemies: Enemy[];
   effects: Effect[];
@@ -41,6 +42,7 @@ interface GameState {
   togglePause: () => void;
   setDodging: (dodging: boolean) => void;
   startGame: () => void;
+  resumeGame: () => void;
   reset: () => void;
   shootStone: (position: [number, number, number], velocity: [number, number, number]) => void;
   removeStone: (id: string) => void;
@@ -51,6 +53,7 @@ interface GameState {
   setPhaseMessage: (message: string | null) => void;
   nextPhase: () => void;
   incrementKills: () => void;
+  setStoryScreen: (screen: number) => void;
 }
 
 export const useStore = create<GameState>((set) => ({
@@ -63,6 +66,7 @@ export const useStore = create<GameState>((set) => ({
   enemiesKilledInPhase: 0,
   phaseMessage: null,
   isTransitioningPhase: false,
+  storyScreen: 1,
   stones: [],
   enemies: [],
   effects: [],
@@ -73,8 +77,9 @@ export const useStore = create<GameState>((set) => ({
   addScore: (amount) => set((state) => ({ score: state.score + amount })),
   togglePause: () => set((state) => ({ isPaused: !state.isPaused })),
   setDodging: (dodging) => set({ isDodging: dodging }),
-  startGame: () => set({ isStarted: true, health: 100, score: 0, isPaused: false, phase: 1, enemiesKilledInPhase: 0, phaseMessage: null, isTransitioningPhase: false, stones: [], enemies: [], effects: [] }),
-  reset: () => set({ health: 100, score: 0, isPaused: false, isDodging: false, isStarted: false, phase: 1, enemiesKilledInPhase: 0, phaseMessage: null, isTransitioningPhase: false, stones: [], enemies: [], effects: [] }),
+  startGame: () => set({ isStarted: true, health: 100, score: 0, isPaused: false, phase: 1, enemiesKilledInPhase: 0, phaseMessage: null, isTransitioningPhase: false, storyScreen: 0, stones: [], enemies: [], effects: [] }),
+  resumeGame: () => set({ isStarted: true, isPaused: false, storyScreen: 0, stones: [], enemies: [], effects: [] }),
+  reset: () => set({ health: 100, score: 0, isPaused: false, isDodging: false, isStarted: false, phase: 1, enemiesKilledInPhase: 0, phaseMessage: null, isTransitioningPhase: false, storyScreen: 1, stones: [], enemies: [], effects: [] }),
   shootStone: (position, velocity) => set((state) => ({
     stones: [...state.stones, { id: nanoid(), position, velocity }]
   })),
@@ -94,6 +99,21 @@ export const useStore = create<GameState>((set) => ({
     effects: state.effects.filter((e) => e.id !== id)
   })),
   setPhaseMessage: (message) => set({ phaseMessage: message, isTransitioningPhase: message !== null }),
-  nextPhase: () => set((state) => ({ phase: state.phase + 1, enemiesKilledInPhase: 0, phaseMessage: null, isTransitioningPhase: false })),
+  nextPhase: () => set((state) => {
+    let nextStoryScreen = 0;
+    if (state.phase === 1) nextStoryScreen = 5;
+    else if (state.phase === 2) nextStoryScreen = 7;
+    else if (state.phase === 3) nextStoryScreen = 9;
+    
+    return { 
+      phase: state.phase + 1, 
+      enemiesKilledInPhase: 0, 
+      phaseMessage: null, 
+      isTransitioningPhase: false,
+      storyScreen: nextStoryScreen,
+      isStarted: nextStoryScreen === 0 // Pause game if going to story screen
+    };
+  }),
   incrementKills: () => set((state) => ({ enemiesKilledInPhase: state.enemiesKilledInPhase + 1 })),
+  setStoryScreen: (screen) => set({ storyScreen: screen }),
 }));
